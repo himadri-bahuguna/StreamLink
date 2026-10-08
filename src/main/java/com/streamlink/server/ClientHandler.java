@@ -33,6 +33,7 @@ public class ClientHandler implements Runnable {
                     clientSocket.getOutputStream(), true
             )
         ) {
+            ResourceManager.getInstance().clientConnected();//to check if clients do not cross the set limit
 
             System.out.println(
                     "Handling client in thread: "
@@ -68,6 +69,7 @@ public class ClientHandler implements Runnable {
             );
 
         } finally {
+            ResourceManager.getInstance().clientDisconnected();
 
             try {
                 clientSocket.close();
