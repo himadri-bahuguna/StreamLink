@@ -48,17 +48,29 @@
 </dependencies>
 
     <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
+    <plugins>
 
-                <configuration>
-                    <release>21</release>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
+        <!-- Existing Java compiler plugin -->
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>3.13.0</version>
+            <configuration>
+                <release>21</release>
+            </configuration>
+        </plugin>
+
+        <!-- JavaFX plugin: add this -->
+        <plugin>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-maven-plugin</artifactId>
+            <version>0.0.8</version>
+            <configuration>
+                <mainClass>com.streamlink.client.StreamLinkGUI</mainClass>
+            </configuration>
+        </plugin>
+
+    </plugins>
+</build>
 
 </project>
