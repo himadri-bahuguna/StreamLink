@@ -1,69 +1,101 @@
+
 package com.streamlink.client;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.Socket;
+import java.util.Scanner;
+
+import com.streamlink.database.UserDAO;
 
 public class StreamClient {
 
     public static void main(String[] args) {
 
-        String serverAddress = "localhost";
-        int port = 5000;
+        try (Scanner scanner = new Scanner(System.in)) {
 
-        try (
-            Socket socket =
-                    new Socket(serverAddress, port);
+            // Step 1: Login
+            System.out.println("===== STREAMLINK LOGIN =====");
+            System.out.print("Enter username: ");
+            String username = scanner.nextLine().trim();
 
-            BufferedReader serverInput =
-                    new BufferedReader(
-                            new InputStreamReader(
-                                    socket.getInputStream()
-                            )
-                    );
+            System.out.print("Enter password: ");
+            String password = scanner.nextLine();
 
-            PrintWriter output =
-                    new PrintWriter(
-                            socket.getOutputStream(), true
-                    );
+            UserDAO userDAO = new UserDAO();
 
-            BufferedReader userInput =
-                    new BufferedReader(
-                            new InputStreamReader(System.in)
-                    )
-        ) {
-
-            System.out.println(
-                    "Connected to StreamLink Server!"
-            );
-
-            System.out.print(
-                    "Enter video title to search: "
-            );
-
-            String keyword = userInput.readLine();
-
-            output.println("SEARCH:" + keyword);
-
-            String response;
-
-            while ((response = serverInput.readLine()) != null) {
-
-                System.out.println(response);
-
-                if ("END".equals(response)) {
-                    break;
-                }
+            if (!userDAO.login(username, password)) {
+                System.out.println(
+                        "Login failed. Invalid username or password."
+                );
+                return;
             }
 
-        } catch (IOException e) {
+            System.out.println("Login successful! Welcome, " + username);
 
-            System.out.println(
-                    "Connection failed: "
-                    + e.getMessage()
-            );
+            // Step 2: Show video menu
+            System.out.println("\n===== STREAMLINK =====");
+            System.out.println("1. List all videos");
+            System.out.println("2. Search by title");
+            System.out.println("3. Search by category");
+            System.out.print("Choose an option: ");
+
+            String choice = scanner.nextLine().trim();
+            String request;
+
+            switch (choice) {
+                case "1":
+                    request = "LIST_VIDEOS";
+                    break;
+
+                case "2":
+                    System.out.print("Enter video title keyword: ");
+                    request = "SEARCH:"
+                            + scanner.nextLine().trim();
+                    break;
+
+                case "3":
+                    System.out.print("Enter category name: ");
+                    request = "SEARCH_CATEGORY:"
+                            + scanner.nextLine().trim();
+                    break;
+
+                default:
+                    System.out.println("Invalid option.");
+                    return;
+            }
+
+            // Step 3: Communicate with the server
+            try (
+                Socket socket = new Socket("localhost", 5000);
+                PrintWriter output = new PrintWriter(
+                        socket.getOutputStream(), true);
+                BufferedReader input = new BufferedReader(
+                        new InputStreamReader(socket.getInputStream()))
+            ) {
+
+                output.println(request);
+
+                String response;
+
+                while ((response = input.readLine()) != null) {
+                    if ("END".equals(response)) {
+                        break;
+                    }
+
+                    System.out.println(response);
+                }
+
+            } catch (Exception e) {
+                System.out.println(
+                        "Could not communicate with the server. "
+                        + "Make sure StreamServer is running."
+                );
+            }
+
+        } catch (Exception e) {
+            System.out.println("Client error: " + e.getMessage());
         }
     }
 }
