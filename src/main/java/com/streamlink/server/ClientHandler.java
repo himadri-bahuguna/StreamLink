@@ -24,59 +24,58 @@ public class ClientHandler implements Runnable {
 
         try (
             BufferedReader input = new BufferedReader(
-                    new InputStreamReader(
-                            clientSocket.getInputStream()
-                    )
+                new InputStreamReader(clientSocket.getInputStream())
             );
-
             PrintWriter output = new PrintWriter(
-                    clientSocket.getOutputStream(), true
+                clientSocket.getOutputStream(), true
             )
         ) {
-            ResourceManager.getInstance().clientConnected();//to check if clients do not cross the set limit
 
             System.out.println(
-                    "Handling client in thread: "
-                    + Thread.currentThread().getName()
+                "Handling client in thread: "
+                + Thread.currentThread().getName()
             );
 
             String clientMessage = input.readLine();
 
-            System.out.println(
-                    "Request from client: " + clientMessage
-            );
+            System.out.println("Request from client: " + clientMessage);
 
-           if ("LIST_VIDEOS".equalsIgnoreCase(clientMessage)) {
+            if (clientMessage == null) {
+                return;
+            }
 
-    sendVideoList(output);
+            if ("LIST_VIDEOS".equalsIgnoreCase(clientMessage)) {
 
-} else if (clientMessage.startsWith("SEARCH:")) {
+                sendVideoList(output);
 
-    String keyword = clientMessage.substring(7).trim();
+            } else if (clientMessage.startsWith("SEARCH_CATEGORY:")) {
 
-    searchVideos(keyword, output);
+                String category = clientMessage.substring(16).trim();
+                searchVideosByCategory(category, output);
 
-} else {
+            } else if (clientMessage.startsWith("SEARCH:")) {
 
-    output.println("Unknown request.");
-}
+                String keyword = clientMessage.substring(7).trim();
+                searchVideos(keyword, output);
+
+            } else {
+
+                output.println("Unknown request.");
+                output.println("END");
+            }
 
         } catch (IOException e) {
 
             System.out.println(
-                    "Client handling error: "
-                    + e.getMessage()
+                "Client handling error: " + e.getMessage()
             );
 
         } finally {
-            ResourceManager.getInstance().clientDisconnected();
 
             try {
                 clientSocket.close();
             } catch (IOException e) {
-                System.out.println(
-                        "Error closing client socket."
-                );
+                System.out.println("Error closing client socket.");
             }
         }
     }
@@ -84,62 +83,61 @@ public class ClientHandler implements Runnable {
     private void sendVideoList(PrintWriter output) {
 
         String query = """
-                SELECT
-                    v.video_id,
-                    v.title,
-                    c.category_name,
-                    u.username
-                FROM videos v
-                JOIN categories c
-                    ON v.category_id = c.category_id
-                JOIN users u
-                    ON v.uploaded_by = u.user_id
-                """;
+            SELECT
+                v.video_id,
+                v.title,
+                c.category_name,
+                u.username
+            FROM videos v
+            JOIN categories c
+                ON v.category_id = c.category_id
+            JOIN users u
+                ON v.uploaded_by = u.user_id
+            """;
 
         try (
-            Connection connection =
-                    DBConnection.getConnection();
-
+            Connection connection = DBConnection.getConnection();
             PreparedStatement statement =
-                    connection.prepareStatement(query);
-
-            ResultSet resultSet =
-                    statement.executeQuery()
+                connection.prepareStatement(query);
+            ResultSet resultSet = statement.executeQuery()
         ) {
 
             output.println("===== VIDEO LIST =====");
 
+            boolean found = false;
+
             while (resultSet.next()) {
 
+                found = true;
+
                 output.println(
-                        resultSet.getInt("video_id")
-                        + " | "
-                        + resultSet.getString("title")
-                        + " | Category: "
-                        + resultSet.getString("category_name")
-                        + " | Uploaded by: "
-                        + resultSet.getString("username")
+                    resultSet.getInt("video_id")
+                    + " | "
+                    + resultSet.getString("title")
+                    + " | Category: "
+                    + resultSet.getString("category_name")
+                    + " | Uploaded by: "
+                    + resultSet.getString("username")
                 );
+            }
+
+            if (!found) {
+                output.println("No videos available.");
             }
 
             output.println("END");
 
         } catch (Exception e) {
 
-            output.println(
-                    "Database error: "
-                    + e.getMessage()
-            );
-
-            System.out.println(
-                    "Database error: "
-                    + e.getMessage()
-            );
+            System.out.println("Database error: " + e.getMessage());
+            output.println("Database error.");
+            output.println("END");
         }
     }
+
     private void searchVideos(String keyword, PrintWriter output) {
 
-    String query = """
+        String query = """
             SELECT
                 v.video_id,
                 v.title,
@@ -154,53 +152,112 @@ public class ClientHandler implements Runnable {
             WHERE v.title LIKE ?
             """;
 
-    try (
-        Connection connection =
-                DBConnection.getConnection();
-
-        PreparedStatement statement =
+        try (
+            Connection connection = DBConnection.getConnection();
+            PreparedStatement statement =
                 connection.prepareStatement(query)
-    ) {
+        ) {
 
-        statement.setString(1, "%" + keyword + "%");
+            statement.setString(1, "%" + keyword + "%");
 
-        ResultSet resultSet =
-                statement.executeQuery();
+            try (ResultSet resultSet = statement.executeQuery()) {
 
-        output.println("===== SEARCH RESULTS =====");
+                output.println("===== SEARCH RESULTS =====");
 
-        boolean found = false;
+                boolean found = false;
 
-        while (resultSet.next()) {
+                while (resultSet.next()) {
 
-            found = true;
+                    found = true;
 
-            output.println(
-                    resultSet.getInt("video_id")
-                    + " | "
-                    + resultSet.getString("title")
-                    + " | Category: "
-                    + resultSet.getString("category_name")
-                    + " | Uploaded by: "
-                    + resultSet.getString("username")
-            );
+                    output.println(
+                        resultSet.getInt("video_id")
+                        + " | "
+                        + resultSet.getString("title")
+                        + " | Category: "
+                        + resultSet.getString("category_name")
+                        + " | Uploaded by: "
+                        + resultSet.getString("username")
+                    );
+                }
+
+                if (!found) {
+                    output.println("No videos found.");
+                }
+
+                output.println("END");
+            }
+
+        } catch (Exception e) {
+
+            System.out.println("Search error: " + e.getMessage());
+            output.println("Search error.");
+            output.println("END");
         }
-
-        if (!found) {
-            output.println("No videos found.");
-        }
-
-        output.println("END");
-
-    } catch (Exception e) {
-
-        output.println(
-                "Search error: " + e.getMessage()
-        );
-
-        System.out.println(
-                "Search error: " + e.getMessage()
-        );
     }
-}
+
+    private void searchVideosByCategory(
+            String category, PrintWriter output) {
+
+        String query = """
+            SELECT
+                v.video_id,
+                v.title,
+                v.description,
+                c.category_name,
+                u.username
+            FROM videos v
+            JOIN categories c
+                ON v.category_id = c.category_id
+            JOIN users u
+                ON v.uploaded_by = u.user_id
+            WHERE c.category_name LIKE ?
+            """;
+
+        try (
+            Connection connection = DBConnection.getConnection();
+            PreparedStatement statement =
+                connection.prepareStatement(query)
+        ) {
+
+            statement.setString(1, "%" + category + "%");
+
+            try (ResultSet resultSet = statement.executeQuery()) {
+
+                output.println("===== CATEGORY SEARCH RESULTS =====");
+
+                boolean found = false;
+
+                while (resultSet.next()) {
+
+                    found = true;
+
+                    output.println(
+                        resultSet.getInt("video_id")
+                        + " | "
+                        + resultSet.getString("title")
+                        + " | Category: "
+                        + resultSet.getString("category_name")
+                        + " | Uploaded by: "
+                        + resultSet.getString("username")
+                    );
+                }
+
+                if (!found) {
+                    output.println("No videos found in this category.");
+                }
+
+                output.println("END");
+            }
+
+        } catch (Exception e) {
+
+            System.out.println(
+                "Category search error: " + e.getMessage()
+            );
+
+            output.println("Category search error.");
+            output.println("END");
+        }
+    }
 }
