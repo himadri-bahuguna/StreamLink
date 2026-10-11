@@ -12,7 +12,7 @@ public class DBConnection {
     private static final String USER = "root";
 
     private static final String PASSWORD =
-            "mysql_password";
+            "Sa@140706";
 
     public static Connection getConnection() throws SQLException {
         return DriverManager.getConnection(URL, USER, PASSWORD);
