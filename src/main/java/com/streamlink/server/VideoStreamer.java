@@ -15,7 +15,11 @@ public class VideoStreamer {
     private final ResourceManager resourceManager;
 
     public VideoStreamer() {
-        this.fileManager = new FileManager();
+        this(new FileManager());
+    }
+
+    VideoStreamer(FileManager fileManager) {
+        this.fileManager = fileManager;
         this.resourceManager = ResourceManager.getInstance();
     }
 
@@ -32,14 +36,17 @@ public class VideoStreamer {
             return;
         }
 
-        if (!resourceManager.tryStartStream()) {
+        ResourceManager.StreamReservation reservation =
+                resourceManager.tryReserveStream();
+        if (reservation == null) {
             controlOutput.println(
                 "STATUS:ERROR MESSAGE:Maximum number of active streams reached.");
             return;
         }
 
-        try (BufferedInputStream videoInput =
-                fileManager.openVideo(videoFile)) {
+        try (ResourceManager.StreamReservation ignored = reservation;
+                BufferedInputStream videoInput =
+                        fileManager.openVideo(videoFile)) {
 
             long videoSize = fileManager.getVideoSize(videoFile);
             controlOutput.println("STATUS:OK SIZE:" + videoSize);
@@ -74,8 +81,8 @@ public class VideoStreamer {
             System.out.println("Video transfer interrupted: " + e.getMessage());
         } catch (IOException e) {
             System.out.println("Video transfer error: " + e.getMessage());
-        } finally {
-            resourceManager.endStream();
+        } catch (RuntimeException e) {
+            System.out.println("Video transfer failed: " + e.getMessage());
         }
     }
 }
