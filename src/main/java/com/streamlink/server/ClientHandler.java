@@ -11,11 +11,14 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 
 import com.streamlink.database.DBConnection;
+import com.streamlink.database.UserDAO;
 
 public class ClientHandler implements Runnable {
 
     private Socket clientSocket;
     private final FileManager fileManager = new FileManager();
+    private final SessionManager sessionManager = SessionManager.getInstance();
+    private final StreamManager streamManager = StreamManager.getInstance();
 
     public ClientHandler(Socket clientSocket) {
         this.clientSocket = clientSocket;
@@ -46,7 +49,14 @@ public class ClientHandler implements Runnable {
                 return;
             }
 
-            if ("LIST_VIDEOS".equalsIgnoreCase(clientMessage)) {
+            if (clientMessage.startsWith("LOGIN:")) {
+                handleLogin(clientMessage.substring(6), output);
+
+            } else if (clientMessage.startsWith("LOGOUT:")) {
+                sessionManager.removeSession(clientMessage.substring(7).trim());
+                output.println("LOGOUT:OK");
+
+            } else if ("LIST_VIDEOS".equalsIgnoreCase(clientMessage)) {
 
                 sendVideoList(output);
 
@@ -66,7 +76,18 @@ public class ClientHandler implements Runnable {
                 VideoStreamer videoStreamer = new VideoStreamer();
 
                 OutputStream videoOutput = clientSocket.getOutputStream();
-                videoStreamer.streamVideo(fileName, output, videoOutput);
+                VideoStreamer.TransferResult result =
+                        videoStreamer.streamVideo(fileName, output, videoOutput);
+                System.out.println("Legacy video transfer "
+                        + result + " for " + fileName);
+
+            } else if (clientMessage.startsWith("START_STREAM_AUTH:")) {
+
+                handleAuthenticatedStart(clientMessage.substring(18), output);
+
+            } else if (clientMessage.startsWith("STOP_STREAM:")) {
+
+                handleStop(clientMessage.substring(12), output);
 
             } else {
 
@@ -89,6 +110,96 @@ public class ClientHandler implements Runnable {
             } catch (IOException e) {
                 System.out.println("Error closing client socket.");
             }
+        }
+    }
+
+    private void handleLogin(String credentials, PrintWriter output) {
+            int separator = credentials.indexOf(':');
+            if (separator <= 0) {
+                output.println("AUTH:ERROR MESSAGE:Invalid login request.");
+                return;
+            }
+
+            String username = credentials.substring(0, separator);
+            String password = credentials.substring(separator + 1);
+            Integer userId = new UserDAO().authenticate(username, password);
+            if (userId == null) {
+                output.println("AUTH:ERROR MESSAGE:Invalid username or password.");
+                return;
+            }
+
+            String token = sessionManager.createSession(userId);
+            output.println("AUTH:OK TOKEN:" + token);
+    }
+
+    private void handleAuthenticatedStart(
+                String request, PrintWriter output) {
+            String[] parts = request.split(":", 3);
+            if (parts.length != 3) {
+                output.println("STATUS:ERROR MESSAGE:Invalid authenticated stream request.");
+                return;
+            }
+
+            Integer userId = sessionManager.getUserId(parts[0]);
+            if (userId == null) {
+                output.println("STATUS:ERROR MESSAGE:Invalid or expired session.");
+                return;
+            }
+
+            int videoId;
+            try {
+                videoId = Integer.parseInt(parts[1]);
+            } catch (NumberFormatException e) {
+                output.println("STATUS:ERROR MESSAGE:Invalid video ID.");
+                return;
+            }
+
+            StreamManager.ActiveStream stream = null;
+            try {
+                stream = streamManager.startStream(userId, videoId, parts[2]);
+                VideoStreamer.TransferResult result =
+                        new VideoStreamer().streamVideo(
+                        parts[2], output, clientSocket.getOutputStream(),
+                        stream.reservation());
+                System.out.println("Authenticated video transfer " + result
+                        + " for stream " + stream.streamId());
+            } catch (Exception e) {
+                output.println("STATUS:ERROR MESSAGE:" + e.getMessage());
+            } finally {
+                streamManager.finishStream(stream);
+            }
+    }
+
+    private void handleStop(String request, PrintWriter output) {
+            String[] parts = request.split(":", 2);
+            if (parts.length != 2) {
+                output.println("STOP_STREAM:ERROR MESSAGE:Invalid stop request.");
+                return;
+            }
+
+            Integer userId = sessionManager.getUserId(parts[0]);
+            if (userId == null) {
+                output.println("STOP_STREAM:ERROR MESSAGE:Invalid or expired session.");
+                return;
+            }
+
+            try {
+                int streamId = Integer.parseInt(parts[1]);
+                StreamManager.StopResult result =
+                        streamManager.stopStream(userId, streamId);
+                switch (result) {
+                    case STOPPED -> output.println("STOP_STREAM:OK");
+                    case TRANSFER_IN_PROGRESS -> output.println(
+                            "STOP_STREAM:ERROR MESSAGE:Transfer is still active.");
+                    case FINALIZATION_FAILED -> output.println(
+                            "STOP_STREAM:ERROR MESSAGE:Database finalization failed.");
+                    case NOT_FOUND_OR_UNAUTHORIZED -> output.println(
+                            "STOP_STREAM:ERROR MESSAGE:Stream not found.");
+                }
+            } catch (NumberFormatException e) {
+                output.println("STOP_STREAM:ERROR MESSAGE:Invalid stream ID.");
+            } catch (Exception e) {
+                output.println("STOP_STREAM:ERROR MESSAGE:" + e.getMessage());
         }
     }
 

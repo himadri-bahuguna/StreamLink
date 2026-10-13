@@ -29,8 +29,9 @@ public class VideoStreamerConcurrencyTest {
                 resourceManager.tryReserveStream();
         try {
             StringWriter response = new StringWriter();
-            streamer.streamVideo("video.mp4", new PrintWriter(response),
-                    new ByteArrayOutputStream());
+            assertEquals(VideoStreamer.TransferResult.FAILURE,
+                    streamer.streamVideo("video.mp4", new PrintWriter(response),
+                            new ByteArrayOutputStream()));
             assertTrue(response.toString().contains(
                     "Maximum number of active streams reached."));
             assertEquals(3, resourceManager.getActiveStreams());
@@ -51,7 +52,9 @@ public class VideoStreamerConcurrencyTest {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         StringWriter response = new StringWriter();
 
-        streamer.streamVideo("video.mp4", new PrintWriter(response), output);
+        assertEquals(VideoStreamer.TransferResult.SUCCESS,
+                streamer.streamVideo("video.mp4", new PrintWriter(response),
+                        output));
 
         assertEquals(0, ResourceManager.getInstance().getActiveStreams());
         assertEquals(content.length, output.size());
@@ -64,13 +67,15 @@ public class VideoStreamerConcurrencyTest {
         Files.writeString(new File(directory, "video.mp4").toPath(), "video");
         VideoStreamer streamer = new VideoStreamer(new FileManager(directory));
 
-        streamer.streamVideo("video.mp4", new PrintWriter(new StringWriter()),
-                new ByteArrayOutputStream() {
+        assertEquals(VideoStreamer.TransferResult.FAILURE,
+                streamer.streamVideo("video.mp4",
+                        new PrintWriter(new StringWriter()),
+                        new ByteArrayOutputStream() {
                     @Override
                     public void write(byte[] bytes, int offset, int length) {
                         throw new RuntimeException("client disconnected");
                     }
-                });
+                }));
 
         assertEquals(0, ResourceManager.getInstance().getActiveStreams());
     }

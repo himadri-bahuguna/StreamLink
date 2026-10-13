@@ -10,8 +10,6 @@ import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 
-import com.streamlink.database.UserDAO;
-
 import javafx.application.Application;
 import javafx.concurrent.Task;
 import javafx.geometry.Insets;
@@ -38,6 +36,7 @@ public class StreamLinkGUI extends Application {
     private Label statusLabel;
     private Button playButton;
     private boolean playbackInProgress;
+    private String sessionToken;
 
     @Override
     public void start(Stage stage) {
@@ -63,10 +62,12 @@ public class StreamLinkGUI extends Application {
                 return;
             }
 
-            if (new UserDAO().login(username, password)) {
+            try {
+                sessionToken = loginWithServer(username, password);
                 showVideoScreen(stage, username);
-            } else {
+            } catch (IOException e) {
                 messageLabel.setText("Invalid username or password.");
+                System.err.println("Login error: " + e.getMessage());
             }
         });
 
@@ -191,7 +192,8 @@ public class StreamLinkGUI extends Application {
         Task<File> task = new Task<>() {
             @Override
             protected File call() throws IOException {
-                return receiveVideo(selected.fileName());
+                return receiveVideo(
+                        selected.videoId(), selected.fileName(), sessionToken);
             }
         };
         task.setOnSucceeded(event -> {
@@ -213,7 +215,11 @@ public class StreamLinkGUI extends Application {
         playbackThread.start();
     }
 
-    private File receiveVideo(String fileName) throws IOException {
+    private File receiveVideo(
+            int videoId, String fileName, String token) throws IOException {
+        if (token == null || token.isBlank()) {
+            throw new IOException("No authenticated session.");
+        }
         try (Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
                 PrintWriter output = new PrintWriter(
                         new OutputStreamWriter(
@@ -221,8 +227,31 @@ public class StreamLinkGUI extends Application {
                                 StandardCharsets.UTF_8), true);
                 BufferedInputStream input =
                         new BufferedInputStream(socket.getInputStream())) {
-            output.println("START_STREAM:" + fileName);
+            output.println("START_STREAM_AUTH:" + token + ":"
+                    + videoId + ":" + fileName);
             return VideoStreamReceiver.receive(input);
+        }
+    }
+
+    private String loginWithServer(String username, String password)
+            throws IOException {
+        try (Socket socket = new Socket(SERVER_HOST, SERVER_PORT);
+                PrintWriter output = new PrintWriter(
+                        new OutputStreamWriter(
+                                socket.getOutputStream(),
+                                StandardCharsets.UTF_8), true);
+                BufferedReader input = new BufferedReader(
+                        new InputStreamReader(
+                                socket.getInputStream(),
+                                StandardCharsets.UTF_8))) {
+            output.println("LOGIN:" + username + ":" + password);
+            String response = input.readLine();
+            if (response == null || !response.startsWith("AUTH:OK TOKEN:")) {
+                throw new IOException(response == null
+                        ? "Server closed the login connection."
+                        : response);
+            }
+            return response.substring("AUTH:OK TOKEN:".length()).trim();
         }
     }
 
@@ -275,6 +304,10 @@ public class StreamLinkGUI extends Application {
 
         private String fileName() {
             return fileName;
+        }
+
+        private int videoId() {
+            return videoId;
         }
 
         @Override

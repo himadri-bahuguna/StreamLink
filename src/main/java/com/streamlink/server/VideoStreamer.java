@@ -11,6 +11,11 @@ public class VideoStreamer {
 
     private static final int BUFFER_SIZE = 8192;
 
+    public enum TransferResult {
+        SUCCESS,
+        FAILURE
+    }
+
     private final FileManager fileManager;
     private final ResourceManager resourceManager;
 
@@ -23,9 +28,16 @@ public class VideoStreamer {
         this.resourceManager = ResourceManager.getInstance();
     }
 
-    public void streamVideo(
+    public TransferResult streamVideo(
             String fileName, PrintWriter controlOutput,
             OutputStream videoOutput) {
+        return streamVideo(fileName, controlOutput, videoOutput, null);
+    }
+
+    TransferResult streamVideo(
+            String fileName, PrintWriter controlOutput,
+            OutputStream videoOutput,
+            ResourceManager.StreamReservation reservation) {
 
         File videoFile;
 
@@ -33,24 +45,30 @@ public class VideoStreamer {
             videoFile = fileManager.getVideoFile(fileName);
         } catch (IllegalArgumentException | IOException e) {
             controlOutput.println("STATUS:ERROR MESSAGE:" + e.getMessage());
-            return;
+            return TransferResult.FAILURE;
         }
 
-        ResourceManager.StreamReservation reservation =
-                resourceManager.tryReserveStream();
-        if (reservation == null) {
-            controlOutput.println(
-                "STATUS:ERROR MESSAGE:Maximum number of active streams reached.");
-            return;
+        boolean ownsReservation = reservation == null;
+        if (ownsReservation) {
+            reservation = resourceManager.tryReserveStream();
+            if (reservation == null) {
+                controlOutput.println(
+                    "STATUS:ERROR MESSAGE:Maximum number of active streams reached.");
+                return TransferResult.FAILURE;
+            }
         }
 
-        try (ResourceManager.StreamReservation ignored = reservation;
+        try (ResourceManager.StreamReservation ignored =
+                    ownsReservation ? reservation : null;
                 BufferedInputStream videoInput =
                         fileManager.openVideo(videoFile)) {
 
             long videoSize = fileManager.getVideoSize(videoFile);
             controlOutput.println("STATUS:OK SIZE:" + videoSize);
             controlOutput.flush();
+            if (controlOutput.checkError()) {
+                throw new IOException("Could not flush stream status.");
+            }
 
             byte[] buffer = new byte[BUFFER_SIZE];
             long bytesRemaining = videoSize;
@@ -75,6 +93,7 @@ public class VideoStreamer {
             }
 
             videoOutput.flush();
+            return TransferResult.SUCCESS;
 
         } catch (InterruptedIOException e) {
             Thread.currentThread().interrupt();
@@ -84,5 +103,6 @@ public class VideoStreamer {
         } catch (RuntimeException e) {
             System.out.println("Video transfer failed: " + e.getMessage());
         }
+        return TransferResult.FAILURE;
     }
 }
