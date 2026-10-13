@@ -98,6 +98,7 @@ public class ClientHandler implements Runnable {
             SELECT
                 v.video_id,
                 v.title,
+                v.file_path,
                 c.category_name,
                 u.username
             FROM videos v
@@ -156,6 +157,7 @@ public class ClientHandler implements Runnable {
                 v.video_id,
                 v.title,
                 v.description,
+                v.file_path,
                 c.category_name,
                 u.username
             FROM videos v
@@ -220,6 +222,7 @@ public class ClientHandler implements Runnable {
                 v.video_id,
                 v.title,
                 v.description,
+                v.file_path,
                 c.category_name,
                 u.username
             FROM videos v
