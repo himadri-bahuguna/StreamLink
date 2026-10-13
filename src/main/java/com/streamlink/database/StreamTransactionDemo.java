@@ -1,15 +1,14 @@
 package com.streamlink.database;
 
-import com.streamlink.server.ResourceManager;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
 
-import java.sql.*;
+import com.streamlink.server.ResourceManager;
 
 public class StreamTransactionDemo {
 
-    // ---- CONFIG: change these, or swap to your DBConnection (see main) ----
-    private static final String URL = "jdbc:mysql://localhost:3306/streamlink";
-    private static final String USER = "root";
-    private static final String PASSWORD = "your_pwd";//make change in this 
+    
 
     private static final ResourceManager rm = ResourceManager.getInstance();
 
@@ -61,7 +60,7 @@ public class StreamTransactionDemo {
     public static void main(String[] args) {
         // If DBConnection has something like getConnection(), use that instead:
         // try (Connection conn = DBConnection.getConnection()) {
-        try (Connection conn = DriverManager.getConnection(URL, USER, PASSWORD)) {
+        try (Connection conn = DBConnection.getConnection())  {
 
             // Use a user_id and video_id that really exist in your tables
             int validUserId = 1;
