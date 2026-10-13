@@ -13,6 +13,7 @@ public class VideoDAO {
                     v.video_id,
                     v.title,
                     v.description,
+                    v.file_path,
                     c.category_name,
                     u.username
                 FROM videos v
@@ -39,6 +40,10 @@ public class VideoDAO {
 
                 System.out.println(
                         "Title: " + resultSet.getString("title")
+                );
+
+                System.out.println(
+                        "File: " + resultSet.getString("file_path")
                 );
 
                 System.out.println(

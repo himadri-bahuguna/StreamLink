@@ -52,4 +52,28 @@ public class FileManagerTest {
                 () -> fileManager.getVideoFile("missing.mp4"));
         assertTrue(fileManager.listVideoFiles().isEmpty());
     }
+
+    @Test
+    public void resolvesStoredPathToSafeFilename() throws IOException {
+        File directory = Files.createTempDirectory("streamlink-stored").toFile();
+        Files.writeString(new File(directory, "sample.mp4").toPath(), "video");
+        FileManager fileManager = new FileManager(directory);
+
+        assertEquals("sample.mp4",
+                fileManager.getFileNameFromStoredPath("sample.mp4"));
+        assertEquals("sample.mp4",
+                fileManager.getFileNameFromStoredPath(
+                        directory.getName() + File.separator + "sample.mp4"));
+    }
+
+    @Test
+    public void rejectsStoredPathOutsideVideoDirectory() throws IOException {
+        File directory = Files.createTempDirectory("streamlink-outside").toFile();
+        File outside = new File(directory.getParentFile(), "outside.mp4");
+        Files.writeString(outside.toPath(), "outside");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> new FileManager(directory)
+                        .getFileNameFromStoredPath(outside.getAbsolutePath()));
+    }
 }

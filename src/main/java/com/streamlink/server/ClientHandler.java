@@ -15,6 +15,7 @@ import com.streamlink.database.DBConnection;
 public class ClientHandler implements Runnable {
 
     private Socket clientSocket;
+    private final FileManager fileManager = new FileManager();
 
     public ClientHandler(Socket clientSocket) {
         this.clientSocket = clientSocket;
@@ -121,13 +122,17 @@ public class ClientHandler implements Runnable {
                 found = true;
 
                 output.println(
-                    resultSet.getInt("video_id")
-                    + " | "
+                    "ID:"
+                    + resultSet.getInt("video_id")
+                        + " | TITLE:"
                     + resultSet.getString("title")
-                    + " | Category: "
-                    + resultSet.getString("category_name")
-                    + " | Uploaded by: "
-                    + resultSet.getString("username")
+                        + " | FILE:"
+                        + fileManager.getFileNameFromStoredPath(
+                                resultSet.getString("file_path"))
+                        + " | Category: "
+                        + resultSet.getString("category_name")
+                        + " | Uploaded by: "
+                        + resultSet.getString("username")
                 );
             }
 
@@ -179,9 +184,13 @@ public class ClientHandler implements Runnable {
                     found = true;
 
                     output.println(
-                        resultSet.getInt("video_id")
-                        + " | "
+                        "ID:"
+                        + resultSet.getInt("video_id")
+                        + " | TITLE:"
                         + resultSet.getString("title")
+                        + " | FILE:"
+                        + fileManager.getFileNameFromStoredPath(
+                                resultSet.getString("file_path"))
                         + " | Category: "
                         + resultSet.getString("category_name")
                         + " | Uploaded by: "
@@ -239,9 +248,13 @@ public class ClientHandler implements Runnable {
                     found = true;
 
                     output.println(
-                        resultSet.getInt("video_id")
-                        + " | "
+                        "ID:"
+                        + resultSet.getInt("video_id")
+                        + " | TITLE:"
                         + resultSet.getString("title")
+                        + " | FILE:"
+                        + fileManager.getFileNameFromStoredPath(
+                                resultSet.getString("file_path"))
                         + " | Category: "
                         + resultSet.getString("category_name")
                         + " | Uploaded by: "

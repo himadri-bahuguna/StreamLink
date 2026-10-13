@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -52,6 +53,34 @@ public class FileManager {
         }
 
         return videoFile;
+    }
+
+    public String getFileNameFromStoredPath(String storedPath)
+            throws IOException {
+        if (storedPath == null || storedPath.isBlank()) {
+            throw new IllegalArgumentException("Stored video path is empty.");
+        }
+
+        Path stored = Paths.get(storedPath);
+        File candidate;
+        if (stored.isAbsolute()) {
+            candidate = stored.toFile();
+        } else if (stored.getNameCount() > 1
+                && videoDirectory.getName().equals(stored.getName(0).toString())) {
+            candidate = new File(videoDirectory.getParentFile(),
+                    stored.toString());
+        } else {
+            candidate = new File(videoDirectory, storedPath);
+        }
+
+        File canonical = candidate.getCanonicalFile();
+        if (!isInsideVideoDirectory(canonical.toPath())
+                || !canonical.getParentFile().equals(videoDirectory)) {
+            throw new IllegalArgumentException(
+                    "Stored video path must reference a file directly inside videos.");
+        }
+
+        return getVideoFile(canonical.getName()).getName();
     }
 
     public List<File> listVideoFiles() throws IOException {
