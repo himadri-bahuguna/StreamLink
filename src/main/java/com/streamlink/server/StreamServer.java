@@ -22,6 +22,8 @@ public class StreamServer {
 
                 Socket clientSocket = serverSocket.accept();
 
+                ResourceManager.getInstance().clientConnected();
+
                 System.out.println("\nNew client connected!");
                 System.out.println(
                         "Client address: "

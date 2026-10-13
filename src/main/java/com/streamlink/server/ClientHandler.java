@@ -81,6 +81,8 @@ public class ClientHandler implements Runnable {
 
         } finally {
 
+            ResourceManager.getInstance().clientDisconnected();
+
             try {
                 clientSocket.close();
             } catch (IOException e) {
@@ -116,7 +118,6 @@ public class ClientHandler implements Runnable {
             boolean found = false;
 
             while (resultSet.next()) {
-
                 found = true;
 
                 output.println(
@@ -137,7 +138,6 @@ public class ClientHandler implements Runnable {
             output.println("END");
 
         } catch (Exception e) {
-
             System.out.println("Database error: " + e.getMessage());
             output.println("Database error.");
             output.println("END");
@@ -176,7 +176,6 @@ public class ClientHandler implements Runnable {
                 boolean found = false;
 
                 while (resultSet.next()) {
-
                     found = true;
 
                     output.println(
@@ -198,7 +197,6 @@ public class ClientHandler implements Runnable {
             }
 
         } catch (Exception e) {
-
             System.out.println("Search error: " + e.getMessage());
             output.println("Search error.");
             output.println("END");
@@ -238,7 +236,6 @@ public class ClientHandler implements Runnable {
                 boolean found = false;
 
                 while (resultSet.next()) {
-
                     found = true;
 
                     output.println(
@@ -260,7 +257,6 @@ public class ClientHandler implements Runnable {
             }
 
         } catch (Exception e) {
-
             System.out.println(
                 "Category search error: " + e.getMessage()
             );

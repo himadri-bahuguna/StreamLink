@@ -1,3 +1,4 @@
+
 package com.streamlink.database;
 
 import java.sql.Connection;
@@ -12,9 +13,17 @@ public class DBConnection {
     private static final String USER = "root";
 
     private static final String PASSWORD =
-            "Sa@140706";
+            System.getenv("STREAMLINK_DB_PASSWORD");
 
     public static Connection getConnection() throws SQLException {
+
+        if (PASSWORD == null || PASSWORD.isBlank()) {
+            throw new SQLException(
+                    "Database password is not configured. "
+                    + "Set the STREAMLINK_DB_PASSWORD environment variable."
+            );
+        }
+
         return DriverManager.getConnection(URL, USER, PASSWORD);
     }
 }
