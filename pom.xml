@@ -42,10 +42,15 @@
             <version>0.4</version>
         </dependency>
 
-        <!-- JavaFX Controls -->
+        <!-- JavaFX UI and media support -->
         <dependency>
             <groupId>org.openjfx</groupId>
             <artifactId>javafx-controls</artifactId>
+            <version>21.0.2</version>
+        </dependency>
+        <dependency>
+            <groupId>org.openjfx</groupId>
+            <artifactId>javafx-media</artifactId>
             <version>21.0.2</version>
         </dependency>
 

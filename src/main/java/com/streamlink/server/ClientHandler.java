@@ -3,6 +3,7 @@ package com.streamlink.server;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.sql.Connection;
@@ -57,6 +58,14 @@ public class ClientHandler implements Runnable {
 
                 String keyword = clientMessage.substring(7).trim();
                 searchVideos(keyword, output);
+
+            } else if (clientMessage.startsWith("START_STREAM:")) {
+
+                String fileName = clientMessage.substring(13).trim();
+                VideoStreamer videoStreamer = new VideoStreamer();
+
+                OutputStream videoOutput = clientSocket.getOutputStream();
+                videoStreamer.streamVideo(fileName, output, videoOutput);
 
             } else {
 
