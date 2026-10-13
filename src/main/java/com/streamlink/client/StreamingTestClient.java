@@ -7,6 +7,10 @@ import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.Scanner;
+
+import com.streamlink.server.FileManager;
 
 /**
  * Requests one video directly from the stream server without authentication
@@ -22,6 +26,13 @@ public final class StreamingTestClient {
     }
 
     public static void main(String[] args) {
+        if (args.length > 0 && ("--list".equalsIgnoreCase(args[0])
+                || "--search".equalsIgnoreCase(args[0])
+                || "--menu".equalsIgnoreCase(args[0]))) {
+            runLocalVideoTools(args);
+            return;
+        }
+
         String host = args.length > 0 ? args[0] : DEFAULT_HOST;
         int port;
         String fileName = args.length > 1 ? args[1] : DEFAULT_FILE;
@@ -69,6 +80,62 @@ public final class StreamingTestClient {
             }
         } catch (IOException e) {
             System.out.println("Streaming test failed: " + e.getMessage());
+        }
+    }
+
+    private static void runLocalVideoTools(String[] args) {
+        FileManager fileManager = new FileManager();
+
+        try {
+            if ("--list".equalsIgnoreCase(args[0])) {
+                printVideoFiles(fileManager.listVideoFiles());
+                return;
+            }
+            if ("--search".equalsIgnoreCase(args[0])) {
+                if (args.length < 2) {
+                    System.out.println("Usage: --search <filename keyword>");
+                    return;
+                }
+                printVideoFiles(fileManager.searchVideoFiles(args[1]));
+                return;
+            }
+
+            runLocalMenu(fileManager);
+        } catch (IOException | IllegalArgumentException e) {
+            System.out.println("Local video operation failed: " + e.getMessage());
+        }
+    }
+
+    private static void runLocalMenu(FileManager fileManager)
+            throws IOException {
+        try (Scanner scanner = new Scanner(System.in)) {
+            System.out.println("===== LOCAL VIDEO TEST =====");
+            System.out.println("1. List MP4 files");
+            System.out.println("2. Search filenames");
+            System.out.print("Choose an option: ");
+            String choice = scanner.nextLine().trim();
+
+            if ("1".equals(choice)) {
+                printVideoFiles(fileManager.listVideoFiles());
+            } else if ("2".equals(choice)) {
+                System.out.print("Enter filename keyword: ");
+                printVideoFiles(fileManager.searchVideoFiles(
+                        scanner.nextLine().trim()));
+            } else {
+                System.out.println("Invalid option.");
+            }
+        }
+    }
+
+    private static void printVideoFiles(List<File> videoFiles) {
+        if (videoFiles.isEmpty()) {
+            System.out.println("No MP4 videos found.");
+            return;
+        }
+
+        System.out.println("Available MP4 videos:");
+        for (File videoFile : videoFiles) {
+            System.out.println("- " + videoFile.getName());
         }
     }
 }
