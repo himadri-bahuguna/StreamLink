@@ -2,3 +2,5 @@ target/
 .idea/
 .vscode/
 *.class
+# Local demo video assets
+videos/*.mp4

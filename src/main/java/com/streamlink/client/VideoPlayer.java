@@ -39,19 +39,32 @@ public class VideoPlayer {
     private boolean draggingSlider;
 
     public VideoPlayer() {
+        System.out.println("VideoPlayer construction on JavaFX thread: "
+                + Platform.isFxApplicationThread());
         initializeUi();
     }
 
     public static void openVideo(File videoFile) {
         Objects.requireNonNull(videoFile, "Video file cannot be null.");
 
-        VideoPlayer player = new VideoPlayer();
+        ensureJavaFxRuntime();
+        Runnable openTask = () -> {
+            try {
+                System.out.println("Opening video: "
+                        + videoFile.getAbsolutePath());
+                VideoPlayer player = new VideoPlayer();
+                player.play(videoFile);
+                player.show();
+            } catch (IOException | RuntimeException e) {
+                System.err.println("Could not initialize video player: "
+                        + e.getMessage());
+            }
+        };
 
-        try {
-            player.play(videoFile);
-            player.show();
-        } catch (IOException e) {
-            System.err.println("Could not load video: " + e.getMessage());
+        if (Platform.isFxApplicationThread()) {
+            openTask.run();
+        } else {
+            Platform.runLater(openTask);
         }
     }
 
@@ -77,83 +90,117 @@ public class VideoPlayer {
         disposePlayer();
         currentFile = validatedFile;
 
-        Media media = new Media(validatedFile.toURI().toString());
-        mediaPlayer = new MediaPlayer(media);
-        mediaView.setMediaPlayer(mediaPlayer);
-        setStatus("Loading video...");
+        String mediaUri = validatedFile.toURI().toString();
+        System.out.println("Video path: " + validatedFile.getAbsolutePath());
+        System.out.println("Video URI: " + mediaUri);
 
-        mediaPlayer.setOnReady(() -> {
-            Duration totalDuration = mediaPlayer.getTotalDuration();
-            double maxSeconds = !isValidDuration(totalDuration)
-                    ? 0.0
-                    : totalDuration.toSeconds();
-            seekSlider.setMax(maxSeconds);
-            seekSlider.setValue(0.0);
-            updateTimeLabel(Duration.ZERO);
-            setStatus("Ready to play");
-            updateControlState();
-        });
+        try {
+            Media media = new Media(mediaUri);
+            media.setOnError(() -> logMediaError(media));
+            System.out.println("Media created successfully.");
 
-        mediaPlayer.setOnPlaying(() -> setStatus("Playing"));
-        mediaPlayer.setOnPaused(() -> setStatus("Paused"));
-        mediaPlayer.setOnStopped(() -> {
-            if (!draggingSlider) {
-                setStatus("Stopped");
-            }
-        });
-        mediaPlayer.setOnEndOfMedia(() -> {
-            setStatus("Playback completed");
-            seekSlider.setValue(seekSlider.getMax());
-            updateTimeLabel(mediaPlayer.getTotalDuration());
-            mediaPlayer.stop();
-            updateControlState();
-        });
-        mediaPlayer.setOnError(() -> {
-            String message = mediaPlayer.getError() == null
-                    ? "Unknown media error."
-                    : mediaPlayer.getError().getMessage();
-            setStatus("Playback error: " + message);
-            updateControlState();
-        });
+            mediaPlayer = new MediaPlayer(media);
+            System.out.println("MediaPlayer created successfully.");
+            mediaView.setMediaPlayer(mediaPlayer);
+            setStatus("Loading video...");
 
-        mediaPlayer.currentTimeProperty().addListener(
-                (observable, oldValue, newValue) -> {
-                    if (mediaPlayer == null || draggingSlider) {
-                        return;
-                    }
+            mediaPlayer.setOnReady(() -> {
+                System.out.println("MediaPlayer onReady fired; status="
+                        + mediaPlayer.getStatus());
+                Duration totalDuration = mediaPlayer.getTotalDuration();
+                double maxSeconds = !isValidDuration(totalDuration)
+                        ? 0.0
+                        : totalDuration.toSeconds();
+                seekSlider.setMax(maxSeconds);
+                seekSlider.setValue(0.0);
+                updateTimeLabel(Duration.ZERO);
+                setStatus("Ready to play");
+                updateControlState();
+            });
 
-                    Duration totalDuration = mediaPlayer.getTotalDuration();
-                    if (!isValidDuration(totalDuration)) {
-                        return;
-                    }
-
-                    double totalSeconds = totalDuration.toSeconds();
-                    if (totalSeconds > 0.0) {
-                        seekSlider.setMax(totalSeconds);
-                    }
-                    seekSlider.setValue(newValue.toSeconds());
-                    updateTimeLabel(newValue);
+            mediaPlayer.statusProperty().addListener(
+                    (observable, oldStatus, newStatus) -> {
+                        System.out.println("MediaPlayer status changed: "
+                                + oldStatus + " -> " + newStatus);
+                        updateControlState();
+                    });
+            mediaPlayer.setOnPlaying(() -> setStatus("Playing"));
+            mediaPlayer.setOnPaused(() -> setStatus("Paused"));
+            mediaPlayer.setOnStopped(() -> {
+                if (!draggingSlider) {
+                    setStatus("Stopped");
                 }
-        );
+            });
+            mediaPlayer.setOnEndOfMedia(() -> {
+                setStatus("Playback completed");
+                seekSlider.setValue(seekSlider.getMax());
+                updateTimeLabel(mediaPlayer.getTotalDuration());
+                mediaPlayer.stop();
+                updateControlState();
+            });
+            mediaPlayer.setOnError(() -> {
+                String message = mediaPlayer.getError() == null
+                        ? "Unknown media error."
+                        : mediaPlayer.getError().getMessage();
+                System.err.println("MediaPlayer error: " + message);
+                setStatus("Playback error: " + message);
+                updateControlState();
+            });
 
-        seekSlider.valueChangingProperty().addListener(
-                (observable, oldValue, newValue) -> draggingSlider = newValue);
+            mediaPlayer.currentTimeProperty().addListener(
+                    (observable, oldValue, newValue) -> {
+                        if (mediaPlayer == null || draggingSlider) {
+                            return;
+                        }
 
-        seekSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
-            if (mediaPlayer == null || !draggingSlider) {
-                return;
-            }
+                        Duration totalDuration = mediaPlayer.getTotalDuration();
+                        if (!isValidDuration(totalDuration)) {
+                            return;
+                        }
 
-            Duration totalDuration = mediaPlayer.getTotalDuration();
-            if (!isValidDuration(totalDuration)) {
-                return;
-            }
+                        double totalSeconds = totalDuration.toSeconds();
+                        if (totalSeconds > 0.0) {
+                            seekSlider.setMax(totalSeconds);
+                        }
+                        seekSlider.setValue(newValue.toSeconds());
+                        updateTimeLabel(newValue);
+                    }
+            );
 
-            mediaPlayer.seek(Duration.seconds(newValue.doubleValue()));
-            updateTimeLabel(Duration.seconds(newValue.doubleValue()));
-        });
+            seekSlider.valueChangingProperty().addListener(
+                    (observable, oldValue, newValue) -> draggingSlider = newValue);
 
-        stage.setTitle(APP_TITLE + " - " + validatedFile.getName());
+            seekSlider.valueProperty().addListener((observable, oldValue, newValue) -> {
+                if (mediaPlayer == null || !draggingSlider) {
+                    return;
+                }
+
+                Duration totalDuration = mediaPlayer.getTotalDuration();
+                if (!isValidDuration(totalDuration)) {
+                    return;
+                }
+
+                mediaPlayer.seek(Duration.seconds(newValue.doubleValue()));
+                updateTimeLabel(Duration.seconds(newValue.doubleValue()));
+            });
+
+            stage.setTitle(APP_TITLE + " - " + validatedFile.getName());
+            updateControlState();
+        } catch (RuntimeException e) {
+            System.err.println("Media initialization error: "
+                    + e.getMessage());
+            disposePlayer();
+            setStatus("Playback error: " + e.getMessage());
+            updateControlState();
+        }
+    }
+
+    private void logMediaError(Media media) {
+        String message = media.getError() == null
+                ? "Unknown media error."
+                : media.getError().getMessage();
+        System.err.println("Media error: " + message);
+        setStatus("Playback error: " + message);
         updateControlState();
     }
 

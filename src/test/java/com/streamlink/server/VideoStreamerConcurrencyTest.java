@@ -79,4 +79,22 @@ public class VideoStreamerConcurrencyTest {
 
         assertEquals(0, ResourceManager.getInstance().getActiveStreams());
     }
+
+    @Test
+    public void missingFileReturnsErrorResponseAndReleasesSlot()
+            throws Exception {
+        File directory = Files.createTempDirectory("streamlink-missing")
+                .toFile();
+        VideoStreamer streamer = new VideoStreamer(new FileManager(directory));
+        StringWriter response = new StringWriter();
+
+        assertEquals(VideoStreamer.TransferResult.FAILURE,
+                streamer.streamVideo("missing.mp4",
+                        new PrintWriter(response),
+                        new ByteArrayOutputStream()));
+
+        assertTrue(response.toString().contains(
+                "STATUS:ERROR MESSAGE:Video file not found: missing.mp4"));
+        assertEquals(0, ResourceManager.getInstance().getActiveStreams());
+    }
 }
